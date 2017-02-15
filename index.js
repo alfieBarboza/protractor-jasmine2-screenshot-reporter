@@ -347,7 +347,7 @@ function Jasmine2ScreenShotReporter(opts) {
             .replace(/\>/g, "&gt;")
             .replace(/\"/g, "&quot;")
             .replace(/\'/g, "&apos;")
-            .replace(/[\x1b]/g, ""); //Remove control character 
+            .replace(/[\x1b]/g, ""); //Remove control character
   }
 
   function printSpec(spec) {
@@ -531,6 +531,16 @@ function Jasmine2ScreenShotReporter(opts) {
     runningSuite._specs.push(spec);
   };
 
+  function alertIsPresent() {
+    return browser.driver.switchTo().alert()
+      .then(function (alert) {
+          alert.accept();
+          return true;
+      }, function (err) {
+          return false;
+    });
+  };
+
   this.specDone = function(spec) {
     spec.filename = {};
     spec = getSpecClone(spec);
@@ -542,38 +552,44 @@ function Jasmine2ScreenShotReporter(opts) {
     }
 
     _.each(browser.forkedInstances, function (browserInstance, key) {
-      if (!browserInstance) {
-        return;
-      }
-      browserInstance.takeScreenshot().then(function (png) {
-        browserInstance.getCapabilities().then(function (capabilities) {
-          var screenshotPath,
+      if (!browserInstance) return;
+
+      alertIsPresent().then(function(isPresent){
+        if(isPresent){
+          spec.skipPrinting = true;
+          return;
+        } else {
+          browserInstance.takeScreenshot().then(function (png) {
+            browserInstance.getCapabilities().then(function (capabilities) {
+              var screenshotPath,
               metadataPath,
               metadata;
 
-          var file = opts.pathBuilder(spec, suites, capabilities);
-          spec.filename[key] = file + '.png';
+              var file = opts.pathBuilder(spec, suites, capabilities);
+              spec.filename[key] = file + '.png';
 
-          screenshotPath = path.join(opts.dest, spec.filename[key]);
-          metadata       = opts.metadataBuilder(spec, suites, capabilities);
+              screenshotPath = path.join(opts.dest, spec.filename[key]);
+              metadata       = opts.metadataBuilder(spec, suites, capabilities);
 
-          if (metadata) {
-            metadataPath = path.join(opts.dest, file + '.json');
-            mkdirp(path.dirname(metadataPath), function(err) {
-              if(err) {
-                throw new Error('Could not create directory for ' + metadataPath);
+              if (metadata) {
+                metadataPath = path.join(opts.dest, file + '.json');
+                mkdirp(path.dirname(metadataPath), function(err) {
+                  if(err) {
+                    throw new Error('Could not create directory for ' + metadataPath);
+                  }
+                  writeMetadata(metadata, metadataPath);
+                });
               }
-              writeMetadata(metadata, metadataPath);
-            });
-          }
 
-          mkdirp(path.dirname(screenshotPath), function(err) {
-            if(err) {
-              throw new Error('Could not create directory for ' + screenshotPath);
-            }
-            writeScreenshot(png, spec.filename[key]);
+              mkdirp(path.dirname(screenshotPath), function(err) {
+                if(err) {
+                  throw new Error('Could not create directory for ' + screenshotPath);
+                }
+                writeScreenshot(png, spec.filename[key]);
+              });
+            });
           });
-        });
+        }
       });
     });
   };
